@@ -26,6 +26,8 @@ function setup () {
 }
 
 /* Display */
+/* We got 11x8 chars of fun! */
+
 function initializeDisplay(callback) {
     if (bSimulation) {
         util.log("Display initialized");
@@ -42,8 +44,7 @@ function refreshDisplay () {
     var sText = "";
 
     sText += oDisplayTexts.sRoutes;
-
-    sText = sText.replace("'", "");
+    
     if (bSimulation) {
         util.log("Display write:\n" + sText);
         return;
@@ -54,9 +55,11 @@ function refreshDisplay () {
     }
     bRefreshing = true;
     util.log("Writing:\n" + sText);
-    exec("oled-exp -c write '" + sText + "'", function (err/*, stdout, stderr*/) {
+    exec("oled-exp -c write \"" + sText + "\"", function (err/*, stdout, stderr*/) {
         bRefreshing = false;
-        util.log("Failed to refresh display text: ", err);
+        if (err) {
+            util.log("Failed to refresh display text: ", err);
+        }
     });
 }
 
