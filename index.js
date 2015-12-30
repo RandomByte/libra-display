@@ -11,6 +11,8 @@ if (!config) {
 // Globals
 var bSimulation = config.simulation,
     bRefreshing = false,
+    bSleeping = false,
+    iDisplayRefreshQueue = 0,
     oDisplayTexts = {
         sRoutes: ""
     };
@@ -20,14 +22,55 @@ function setup () {
         if (err) {
             util.log("Failed to initialize display: ", err);
         } else {
-            refreshRoute(config.commute.origin, config.commute.destination, 3 /* fixed for now*/);
+            loop();
+            setInterval(function () {
+                loop();
+            }, 60000); // refresh every minute
         }
     });
 }
 
-/* Display */
-/* We got 11x8 chars of fun! */
+function loop () {
+    checkSleep(function (err, bSleeping) {
+        if (err) {
+            util.log("Sleep check failed: ", err);
+        } else if (!bSleeping) {
+            refreshRoutes(config.commute.origin, config.commute.destination, 3 /* fixed for now*/);
+        }
+    });
+}
 
+function checkSleep (callback) {
+    var oDate;
+    
+    if (bSimulation || !config.activeHoursStart || !config.activeHoursEnd) {
+        callback(null, false);
+        return;
+    }
+    
+    oDate = new Date();
+    if (oDate.getHours() < config.activeHoursStart || oDate.getHours() < config.activeHoursEnd) {
+        if (!bSleeping) {
+            bSleeping = true;
+            sleepDisplay(function (err) {
+                callback(err, bSleeping);
+            });
+        } else {
+            callback(null, bSleeping);
+        }
+    } else {
+        if (bSleeping) {
+            waikUpDisplay(function (err) {
+                callback(err, bSleeping);
+            });
+            bSleeping = false;
+        } else {
+            callback(null, bSleeping);
+        }
+    }
+}
+
+/* Display */
 function initializeDisplay(callback) {
     if (bSimulation) {
         util.log("Display initialized");
@@ -40,27 +83,64 @@ function initializeDisplay(callback) {
     });
 }
 
-function refreshDisplay () {
-    var sText = "";
+function waikUpDisplay (callback) {
+    exec("oled-exp -i power on", function (err/*, stdout, stderr*/) {
+        callback(err);
+    });
+}
 
-    sText += oDisplayTexts.sRoutes;
-    
-    if (bSimulation) {
-        util.log("Display write:\n" + sText);
-        return;
-    }
+function sleepDisplay (callback) {
+    exec("oled-exp -i power off", function (err/*, stdout, stderr*/) {
+        callback(err);
+    });
+}
+
+function refreshDisplay () {
+    var sText = "", oDate;
+
     if (bRefreshing) {
-        util.log("Refresh running - aborting (TBD queue)");
+        // Refresh running, adding to queue
+        iDisplayRefreshQueue++;
         return;
     }
     bRefreshing = true;
-    util.log("Writing:\n" + sText);
+
+    /*     Building the text     */
+    /* We got 11x8 chars of fun! */
+
+    // 1 Line
+    sText += "Routes to work:\\n";
+
+    // 3 Lines: Routes
+    sText += oDisplayTexts.sRoutes;
+
+    // 2 Lines break
+    sText += "\\n\\n";
+
+    // 1 Line: Last refresh timestamp
+    oDate = new Date();
+    sText += "Updated: " + ensureLeadingZero(oDate.getHours()) + ":" + ensureLeadingZero(oDate.getMinutes());
+
+    if (bSimulation) {
+        util.log("Display write: " + sText);
+        bRefreshing = false;
+        return;
+    }
+    util.log("Writing: " + sText);
     exec("oled-exp -c write \"" + sText + "\"", function (err/*, stdout, stderr*/) {
         bRefreshing = false;
         if (err) {
             util.log("Failed to refresh display text: ", err);
         }
+        if (iDisplayRefreshQueue > 0) {
+            iDisplayRefreshQueue--;
+            setTimeout(refreshDisplay, 0);
+        }
     });
+}
+
+function ensureLeadingZero (iNumber) {
+    return iNumber < 10 ? "0" + iNumber : iNumber;
 }
 
 /* Commute */
@@ -68,6 +148,25 @@ var oGoogleMaps = new GoogleMapsAPI({
     key: config.commute.apiKey,
     secure: true // use https
 });
+
+function refreshRoutes(sOrigin, sDestination, iRoutesToDisplay) {
+    getRouteTimes(sOrigin, sDestination, function(oError, aRoutes) {
+        var sRoutes;
+        if (oError) {
+            util.log(oError.message);
+        } else if (aRoutes.length === 0) {
+            util.log("No routes found");
+        } else {
+            // Sorting the shortest to the top
+            aRoutes = aRoutes.sort(function(oRouteA, oRouteB) {
+                return oRouteA.iDuration - oRouteB.iDuration;
+            });
+            aRoutes.splice(iRoutesToDisplay, aRoutes.length - iRoutesToDisplay);
+            sRoutes = createRouteDisplayText(aRoutes);
+            updateRouteDisplay(sRoutes);
+        }
+    });
+}
 
 function getRouteTimes(sOrigin, sDestination, callback) {
     // origin, destination, callback, sensor, mode, waypoints, alternatives, avoid, units, language, departureTime, arrivalTime, region
@@ -108,7 +207,7 @@ function createRouteDisplayText(aRoutes) {
 
     for (i = 0; i < aRoutes.length; i++) {
         if (i !== 0) {
-            sText += "\n";
+            sText += "\\n";
         }
         oRoute = aRoutes[i];
         sText += oRoute.sSummary + ": " + oRoute.sDuration;
@@ -119,25 +218,6 @@ function createRouteDisplayText(aRoutes) {
 function updateRouteDisplay(sRouteText) {
     oDisplayTexts.sRoutes = sRouteText;
     refreshDisplay();
-}
-
-function refreshRoute(sOrigin, sDestination, iRoutesToDisplay) {
-    getRouteTimes(sOrigin, sDestination, function(oError, aRoutes) {
-        var sRoutes;
-        if (oError) {
-            util.log(oError.message);
-        } else if (aRoutes.length === 0) {
-            util.log("No routes found");
-        } else {
-            // Sorting the shortest to the top
-            aRoutes = aRoutes.sort(function(oRouteA, oRouteB) {
-                return oRouteA.iDuration - oRouteB.iDuration;
-            });
-            aRoutes.splice(iRoutesToDisplay, aRoutes.length - iRoutesToDisplay);
-            sRoutes = createRouteDisplayText(aRoutes);
-            updateRouteDisplay(sRoutes);
-        }
-    });
 }
 
 setup();

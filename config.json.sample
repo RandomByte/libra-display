@@ -7,5 +7,7 @@
     "weather": {
         "location": ""
     },
-    "simulation": false
+    "simulation": false,
+    "activeHoursStart": <hour of day to after which libra should display something (i.e. not all night)>,
+    "activeHoursEnd": <hour of day after which libra should stop display something (i.e. while you are at work)>
 }
