@@ -1,0 +1,11 @@
+{
+    "commute": {
+        "origin": "<some address or geo coordinates>",
+        "destination": "<some address or geo coordinates>",
+        "apiKey": "<for Google Maps - see https://developers.google.com/maps/documentation/directions/get-api-key>"
+    },
+    "weather": {
+        "location": ""
+    },
+    "simulation": false
+}

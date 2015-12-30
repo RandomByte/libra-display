@@ -1,0 +1,25 @@
+{
+  "name": "libra-display",
+  "version": "1.0.0",
+  "description": "The stuff my Omega Onion displays",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RandomByte/libra-display.git"
+  },
+  "author": "RandomByte",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/RandomByte/libra-display/issues"
+  },
+  "homepage": "https://github.com/RandomByte/libra-display#readme",
+  "dependencies": {
+    "googlemaps": "^1.0.2"
+  },
+  "devDependencies": {
+    "eslint-config-google": "^0.3.0"
+  }
+}
